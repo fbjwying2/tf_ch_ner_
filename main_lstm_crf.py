@@ -12,7 +12,7 @@ import numpy as np
 import tensorflow as tf
 import tf_metrics
 
-DATADIR = 'data/example3'
+DATADIR = 'data/example_ch'
 
 # Logging
 Path('results').mkdir(exist_ok=True)
