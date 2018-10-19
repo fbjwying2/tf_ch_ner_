@@ -1,7 +1,5 @@
 """GloVe Embeddings + bi-LSTM + CRF"""
 
-__author__ = "Guillaume Genthial"
-
 import functools
 import json
 import logging
@@ -12,13 +10,14 @@ import numpy as np
 import tensorflow as tf
 import tf_metrics
 
-DATADIR = 'data/example_ch'
+DATADIR = 'G:/test_data/NLP/rmrb2014/ready_data'
+RESULTS_DIR = 'G:/test_data/NLP/rmrb2014/results'
 
 # Logging
-Path('results').mkdir(exist_ok=True)
+Path(RESULTS_DIR).mkdir(exist_ok=True)
 tf.logging.set_verbosity(logging.INFO)
 handlers = [
-    logging.FileHandler('results/main.log'),
+    logging.FileHandler(RESULTS_DIR + '/main.log'),
     logging.StreamHandler(sys.stdout)
 ]
 logging.getLogger('tensorflow').handlers = handlers
@@ -77,20 +76,14 @@ def model_fn(features, labels, mode, params):
     embeddings = tf.layers.dropout(embeddings, rate=dropout, training=training)
 
     # LSTM
-    #t = tf.transpose(embeddings, perm=[1, 0, 2])
-    lstm_cell_fw = tf.contrib.rnn.LSTMCell(params['lstm_size'])
-    lstm_cell_bw = tf.contrib.rnn.LSTMCell(params['lstm_size'])
-    #lstm_cell_bw = tf.contrib.rnn.TimeReversedFusedRNN(lstm_cell_bw)
-    #output_fw, _ = lstm_cell_fw(t, dtype=tf.float32, sequence_length=nwords)
-    #output_bw, _ = lstm_cell_bw(t, dtype=tf.float32, sequence_length=nwords)
-    (output_fw, output_bw), _ = tf.nn.bidirectional_dynamic_rnn(
-        cell_fw=lstm_cell_fw,
-        cell_bw=lstm_cell_bw,
-        inputs=embeddings,
-        sequence_length=nwords,
-        dtype=tf.float32)
+    t = tf.transpose(embeddings, perm=[1, 0, 2])
+    lstm_cell_fw = tf.contrib.rnn.LSTMBlockFusedCell(params['lstm_size'])
+    lstm_cell_bw = tf.contrib.rnn.LSTMBlockFusedCell(params['lstm_size'])
+    lstm_cell_bw = tf.contrib.rnn.TimeReversedFusedRNN(lstm_cell_bw)
+    output_fw, _ = lstm_cell_fw(t, dtype=tf.float32, sequence_length=nwords)
+    output_bw, _ = lstm_cell_bw(t, dtype=tf.float32, sequence_length=nwords)
     output = tf.concat([output_fw, output_bw], axis=-1)
-    #output = tf.transpose(output, perm=[1, 0, 2])
+    output = tf.transpose(output, perm=[1, 0, 2])
     output = tf.layers.dropout(output, rate=dropout, training=training)
 
     # CRF
@@ -138,13 +131,19 @@ def model_fn(features, labels, mode, params):
                 mode, loss=loss, train_op=train_op)
 
 
+def __fwords(name):
+    return str(Path(DATADIR, '{}.words.txt'.format(name)))
+
+def __ftags(name):
+    return str(Path(DATADIR, '{}.tags.txt'.format(name)))
+
 if __name__ == '__main__':
     # Params
     params = {
         'dim': 300,
         'dropout': 0.5,
         'num_oov_buckets': 1,
-        'epochs': 20,
+        'epochs': 30,
         'batch_size': 32,
         'buffer': 15000,
         'lstm_size': 300,
@@ -153,35 +152,29 @@ if __name__ == '__main__':
         'tags': str(Path(DATADIR, 'vocab.tags.txt')),
         'glove': str(Path(DATADIR, 'glove.npz'))
     }
-    with Path('results/params.json').open('w') as f:
+    with Path(RESULTS_DIR + '/params.json').open('w') as f:
         json.dump(params, f, indent=4, sort_keys=True)
 
-    def fwords(name):
-        return str(Path(DATADIR, '{}.words.txt'.format(name)))
-
-    def ftags(name):
-        return str(Path(DATADIR, '{}.tags.txt'.format(name)))
-
     # Estimator, train and evaluate
-    train_inpf = functools.partial(input_fn, fwords('train'), ftags('train'),
+    train_inpf = functools.partial(input_fn, __fwords('train'), __ftags('train'),
                                    params, shuffle_and_repeat=True)
-    eval_inpf = functools.partial(input_fn, fwords('testa'), ftags('testa'))
+    eval_inpf = functools.partial(input_fn, __fwords('testa'), __ftags('testa'))
 
-    cfg = tf.estimator.RunConfig(save_checkpoints_secs=120)
-    estimator = tf.estimator.Estimator(model_fn, 'results/model', cfg, params)
+    cfg = tf.estimator.RunConfig(save_checkpoints_secs=60 * 2)
+    estimator = tf.estimator.Estimator(model_fn, RESULTS_DIR + '/model', cfg, params)
     Path(estimator.eval_dir()).mkdir(parents=True, exist_ok=True)
     hook = tf.contrib.estimator.stop_if_no_increase_hook(
-        estimator, 'f1', 500, min_steps=30000, run_every_secs=120)
+        estimator, 'f1', 500, min_steps=30000, run_every_secs=60 * 2)
     train_spec = tf.estimator.TrainSpec(input_fn=train_inpf, hooks=[hook])
-    eval_spec = tf.estimator.EvalSpec(input_fn=eval_inpf, throttle_secs=120)
+    eval_spec = tf.estimator.EvalSpec(input_fn=eval_inpf, throttle_secs=60 * 2)
     tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
 
     # Write predictions to file
     def write_predictions(name):
-        Path('results/score').mkdir(parents=True, exist_ok=True)
-        with Path('results/score/{}.preds.txt'.format(name)).open('wb') as f:
-            test_inpf = functools.partial(input_fn, fwords(name), ftags(name))
-            golds_gen = generator_fn(fwords(name), ftags(name))
+        Path(RESULTS_DIR + '/score').mkdir(parents=True, exist_ok=True)
+        with Path(RESULTS_DIR + '/score/{}.preds.txt'.format(name)).open('wb') as f:
+            test_inpf = functools.partial(input_fn, __fwords(name), __ftags(name))
+            golds_gen = generator_fn(__fwords(name), __ftags(name))
             preds_gen = estimator.predict(test_inpf)
             for golds, preds in zip(golds_gen, preds_gen):
                 ((words, _), tags) = golds
