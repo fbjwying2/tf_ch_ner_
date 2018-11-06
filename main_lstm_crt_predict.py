@@ -26,13 +26,13 @@ parser.add_argument('--extract_data_name', type=str, default='train,testa,testb'
 parser.add_argument('--result_path', type=str, default='result', help='predict result')
 args = parser.parse_args()
 
-#DATADIR = args.data_dir                     # 'G:/test_data/NLP/rmrb2014/ready_data'
-#MODEL_PATH = args.model_dir                 # 'G:/test_data/NLP/rmrb2014/results/md'
-#RESULTS_DIR = args.result_path              # 'G:/test_data/NLP/rmrb2014/results/predict'
+DATADIR = args.data_dir                     # 'G:/test_data/NLP/rmrb2014/ready_data'
+MODEL_PATH = args.model_dir                 # 'G:/test_data/NLP/rmrb2014/results/md'
+RESULTS_DIR = args.result_path              # 'G:/test_data/NLP/rmrb2014/results/predict'
 
-DATADIR = 'G:/test_data/NLP/rmrb2014/ready_data'
-MODEL_PATH = 'G:/test_data/NLP/rmrb2014/results/md'
-RESULTS_DIR = 'G:/test_data/NLP/rmrb2014/results/predict'
+#DATADIR = 'G:/test_data/NLP/rmrb2014/ready_data'
+#MODEL_PATH = 'G:/test_data/NLP/rmrb2014/results/md'
+#RESULTS_DIR = 'G:/test_data/NLP/rmrb2014/results/predict'
 
 _extract_data_name = args.extract_data_name.strip().split(',')
 
@@ -147,27 +147,39 @@ class IdentityNER(object):
 
     def __init__(self):
         self._tag_pred_b = ""
+        self._word_index_b = -1
         self._tag_pred_i = ""
         self._pred_word =""
-        self.tag_words = {}
+        #self.tag_words = {}
+        self.tag_words = []
+
+
+    def _set_tag_words_for_dict(self):
+        _key = self._tag_pred_b[2:]
+        if _key in self.tag_words.keys():
+            _item = self.tag_words[_key]
+            _item_key = self._pred_word
+            if _item_key in _item.keys():
+                _item[_item_key] += 1
+            else:
+                _item[_item_key] = 1
+        else:
+            _item = {self._pred_word: 1}
+            self.tag_words[_key] = _item
+
+    def _set_tag_words_for_list(self):
+        # [{"word":"佛山","index":0,"ner":"LOC"},{"word":"佛山","index":5,"ner":"LOC"}]
+        _ner_type = self._tag_pred_b[2:]
+        index = 0
+        _ner_item = {"word": self._pred_word, "index": index, "ner": _ner_type}
+        self.tag_words.append(_ner_item)
 
     def get_pred_result(self):
         return self.tag_words
 
     def _append_tag_word(self):
         if len(self._tag_pred_b) > 0:  # 之前存在，需要保存
-            _key = self._tag_pred_b[2:]
-            if _key in self.tag_words.keys():
-                _item = self.tag_words[_key]
-                _item_key = self._pred_word
-                if _item_key in _item.keys():
-                    _item[_item_key] += 1
-                else:
-                    _item[_item_key] = 1
-            else:
-                _item = {self._pred_word: 1}
-                self.tag_words[_key] = _item
-
+            self._set_tag_words_for_list()
             return True
         else:
             return False
@@ -176,15 +188,20 @@ class IdentityNER(object):
         self._tag_pred_b = ""
         self._tag_pred_i = ""
         self._pred_word = ""
+        self._word_index_b = -1
+
+        word_index = 0
         for word, tag, tag_pred in zip(words, tags, preds_tages):
-            self._process_word(word, tag_pred)
+            self._process_word(word, tag_pred, word_index)
+            word_index += 1
 
         if len(self._tag_pred_b) > 0:
             self._append_tag_word()
             self._tag_pred_b = ""
             self._pred_word = ""
+            self._word_index_b = -1
 
-    def _process_word(self, word, tag_pred):
+    def _process_word(self, word, tag_pred, word_index):
         _word = word.decode()
         _tag_pred = tag_pred.decode()
         if _tag_pred != 'O':
@@ -192,6 +209,7 @@ class IdentityNER(object):
                 self._append_tag_word()
                 self._tag_pred_b = _tag_pred
                 self._pred_word = _word
+                self._word_index_b = word_index
             elif _tag_pred[0] == 'I':  # 词中间
                 if len(self._tag_pred_b) > 0 and self._tag_pred_b[2:] == _tag_pred[2:]:
                     self._pred_word += _word
@@ -202,6 +220,7 @@ class IdentityNER(object):
             if _is_append:
                 self._tag_pred_b = ""
                 self._pred_word = ""
+                self._word_index_b = -1
 
     def process(self, golds_gen, preds_gen):
         i = 0
@@ -327,14 +346,15 @@ def predict(sent):
     preds_gen = g_estimator.predict(test_inpf)
     _tag_words = IdentityNER().process(golds_gen, preds_gen)
     result_dict = {"sent": demo_sent, "result": _tag_words}
-    return str(result_dict)
+    return result_dict
 
 # 初始化
 mylogger.info("Begin Initialization.......")
 g_estimator = _build_model()
 # 初始化，第一次运行预测速度会很慢
-s = predict("佛山天翼公司欢迎您！")
-print(s)
+python2json = predict("佛山天翼公司欢迎您！")
+json_str = json.dumps(python2json, ensure_ascii=False)
+print(json_str)
 mylogger.info("End Initialization.......")
 
 
@@ -403,8 +423,11 @@ if __name__ == '__main__':
             else:
                 demo_sent = demo_sent.strip()
                 start = time.time()
-                print(predict(demo_sent))
+                python2json = predict(demo_sent)
+                json_str = json.dumps(python2json,ensure_ascii=False)
+                print(json_str)
                 end = time.time()
+
                 print("predict time:{}".format(end - start))
     #elif args.type == 'predict':
 
