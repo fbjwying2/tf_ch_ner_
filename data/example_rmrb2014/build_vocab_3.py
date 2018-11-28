@@ -23,7 +23,7 @@ if __name__ == '__main__':
     print('Build vocab words (may take a while)')
     counter_words = Counter()
     for n in ['train', 'testa', 'testb']:
-        with Path(__words(n)).open() as f:
+        with Path(__words(n)).open(encoding='utf-8') as f:
             for line in f:
                 counter_words.update(line.strip().split())
 

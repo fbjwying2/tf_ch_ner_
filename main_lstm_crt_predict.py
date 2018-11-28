@@ -1,3 +1,8 @@
+# cmd
+# python main_lstm_crt_predict.py --type=demo --model_dir="G:/test_data/NLP/foshan2018/result/model" --result_path="G:/test_data/NLP/foshan2018/result" --data_dir="G:/test_data/NLP/foshan2018/ready_data"
+
+
+
 import tensorflow as tf
 import numpy as np
 from pathlib import Path
@@ -19,10 +24,10 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 
 parser = argparse.ArgumentParser(description='BiLSTM-CRF for Chinese NER task')
-parser.add_argument('--type', type=str, default='demo', help='extract/predict/demo/test')
+parser.add_argument('--type', type=str, default='extract', help='extract/predict/demo/test')
 parser.add_argument('--model_dir', type=str, default='model', help='model file')
 parser.add_argument('--data_dir', type=str, default='data', help='train.words.txt train.tags.txt')
-parser.add_argument('--extract_data_name', type=str, default='train,testa,testb', help='train,testa,testb......')
+parser.add_argument('--extract_data_name', type=str, default='predicta', help='train,testa,testb......')
 parser.add_argument('--result_path', type=str, default='result', help='predict result')
 args = parser.parse_args()
 
@@ -30,9 +35,9 @@ DATADIR = args.data_dir                     # 'G:/test_data/NLP/rmrb2014/ready_d
 MODEL_PATH = args.model_dir                 # 'G:/test_data/NLP/rmrb2014/results/md'
 RESULTS_DIR = args.result_path              # 'G:/test_data/NLP/rmrb2014/results/predict'
 
-#DATADIR = 'G:/test_data/NLP/rmrb2014/ready_data'
-#MODEL_PATH = 'G:/test_data/NLP/rmrb2014/results/md'
-#RESULTS_DIR = 'G:/test_data/NLP/rmrb2014/results/predict'
+# DATADIR = 'G:/test_data/NLP/rmrb2014/ready_data'
+# MODEL_PATH = 'G:/test_data/NLP/rmrb2014/results/md'
+# RESULTS_DIR = 'G:/test_data/NLP/rmrb2014/results/predict'
 
 _extract_data_name = args.extract_data_name.strip().split(',')
 
@@ -223,14 +228,20 @@ class IdentityNER(object):
                 self._word_index_b = -1
 
     def process(self, golds_gen, preds_gen):
-        i = 0
-        for golds, preds in zip(golds_gen, preds_gen):
-            ((words, _), tags) = golds
-            self.process_sent(words, tags, preds['tags'])
 
-            i += 1
-            if i % 1000 == 0:
-                print("process....:{}".format(i))
+        with Path(RESULTS_DIR + '/score/{}.preds.txt'.format('aaa')).open('wb') as f:
+            i = 0
+            for golds, preds in zip(golds_gen, preds_gen):
+                ((words, _), tags) = golds
+                self.process_sent(words, tags, preds['tags'])
+
+                #for word, tag, tag_pred in zip(words, tags, preds['tags']):
+                #    f.write(b' '.join([word, tag, tag_pred]) + b'\n')
+                #f.write(b'\n')
+
+                i += 1
+                if i % 1000 == 0:
+                    print("process....:{}".format(i))
 
         return self.tag_words
 
@@ -314,7 +325,7 @@ class BatchInput:
         return (words, len(words)), tags
 
     def generator_fn(self, words, tags):
-        with Path(words).open('r') as f_words, Path(tags).open('r') as f_tags:
+        with Path(words).open('r', encoding='utf-8') as f_words, Path(tags).open('r', encoding='utf-8') as f_tags:
             for line_words, line_tags in zip(f_words, f_tags):
                 yield self._parse_fn(line_words, line_tags)
 
@@ -358,6 +369,29 @@ print(json_str)
 mylogger.info("End Initialization.......")
 
 
+class NerOutput:
+
+    def __init__(self, ner_type, tag):
+        file_name = RESULTS_DIR + "/score/NER_extract_" + ner_type + ".txt"
+        self.file = open(file_name, "w")
+        self.map_ner = {}
+        self.tag = tag
+
+    def __del__(self):
+        self.file.close()
+
+    def process(self, word):
+        if word not in self.map_ner:
+            self.map_ner[word] = 1
+            line_str = word + ' ' + self.tag
+            self.file.write("{}\n".format(line_str))
+
+_map_ner = {"LOC": NerOutput("LOC", 'ns'),
+            "ORG": NerOutput("ORG", 'nt'),
+            "PER": NerOutput("PER", 'nr'),
+            "TIM": NerOutput("TIM", 't'),
+            "QUA": NerOutput("QUA", 'mq')}
+
 if __name__ == '__main__':
 
     if args.type == 'extract':
@@ -386,6 +420,7 @@ if __name__ == '__main__':
         with open(RESULTS_DIR + '/score/ner_extract.json', 'w') as fj:
             fj.write(js_obj)
 
+        """
         mylogger.info("Writing NER_....txt ......")
         # 按实体类型保存
         for key in _tag_words.keys():
@@ -396,6 +431,17 @@ if __name__ == '__main__':
                 _item_soreted = sorted(_item.items(), key=lambda item: item[1], reverse=True)
                 for it in _item_soreted:
                     fw.write("{} {}\n".format(it[0], it[1]))
+
+        mylogger.info("The End!")
+        """
+
+        mylogger.info("Writing NER_....txt ......")
+
+        # 按实体类型保存
+
+        for item in _tag_words:
+            if item['ner'] in _map_ner:
+                _map_ner[item['ner']].process(item['word'])
 
         mylogger.info("The End!")
 

@@ -1,3 +1,26 @@
+# cmd
+# cd G:\test_code\NLP\tf_ch_ner_\data\example_rmrb2014
+# python build_data_1.py --data_dir="G:/test_data/NLP/词性标注/人民日报语料库2014/2018_foshan" --result_dir="G:/test_data/NLP/foshan2018"
+
+
+import argparse
+
+parser = argparse.ArgumentParser(description='build data for training')
+parser.add_argument('--data_dir', type=str, default='data', help='data dir')
+parser.add_argument('--result_dir', type=str, default='result', help='predict result')
+args = parser.parse_args()
+
+
+DATADIR = args.data_dir
+#  'G:/test_data/NLP/词性标注/人民日报语料库2014/2014'
+#DATADIR = "G:/test_data/NLP/词性标注/人民日报语料库2014/2018_foshan"
+
+RESULTS_DIR = args.result_dir
+# 'G:/test_data/'
+#RESULTS_DIR = 'G:/test_data/NLP/foshan2018'
+
+#####################################################
+
 g_open_bracket = "["
 g_close_bracket = "]"
 
@@ -206,6 +229,7 @@ def __process_merge0split(_s_word_tag,tag):
 
 # 匹配中括号 [  ]
 #
+g_match_split_char = [' ', '/t', '\n']
 def __match(word_tag):
     if len(word_tag) < 4:
         return "", 1
@@ -303,16 +327,14 @@ def match_label(sent):
     return lsit_word_label
 
 def process_files(list_file, out_file):
-    fw2 = open(out_file, 'w')
-    fw2.close()
 
     for lf in list_file:
         print(lf)
         with open(lf, encoding='utf-8') as fr:
             lines = fr.readlines()
 
-        with open(out_file, 'a+') as fw:
-            for line in lines:
+        with open(out_file, 'a+', encoding='utf-8') as fw:
+            for line_no, line in enumerate(lines):
                 doc = process_merge_word_label(line)
                 sents = split_doc2sents(doc)
                 #sents = [doc]
@@ -324,6 +346,36 @@ def process_files(list_file, out_file):
 
                         fw.write('\n')
 
+def process_files2(list_file, out_dir, testa_percent, test_a_begin):
+    for lf in list_file:
+        print(lf)
+        with open(lf, encoding='utf-8') as fr:
+            lines = fr.readlines()
+
+        line_count = len(lines)
+        testa_count = int(line_count * testa_percent)
+        testa_b = test_a_begin * testa_count
+        fw_testa = open(out_dir + '/testa_data', 'a+', encoding='utf-8')
+
+        with open(out_dir + '/train_data', 'a+', encoding='utf-8') as fw, \
+            open(out_dir + '/testa_data', 'a+', encoding='utf-8') as fw_testa:
+
+            for line_no, line in enumerate(lines):
+                doc = process_merge_word_label(line)
+                sents = split_doc2sents(doc)
+                #sents = [doc]
+                for sent in sents:
+                    if len(sent) > 0:
+                        list_word_label = match_label(sent)
+                        f = fw
+                        if line_no in range(testa_b, testa_b + testa_count):
+                          f = fw_testa
+
+                        for word_tag in list_word_label:
+                            f.write('{}\n'.format(word_tag))
+
+                        f.write('\n')
+
 
 import os
 def listdir(path, list_name):
@@ -334,17 +386,20 @@ def listdir(path, list_name):
         elif os.path.splitext(file_path)[1] == '.txt':
             list_name.append(file_path)
 
+
 if __name__ == '__main__':
     is_test = 1
     if is_test == 0:
         test = []
-        test_sent = "站/n 消息/n ，/w 近日/t ，/w 民政部/nis 、/w [国家/n 减灾/vn 委员会/nis 办公室/nis]/nt 会同/v [工业/n 和/cc 信息化/vn 部/q]/nz 、/w [国土/n 资源部/nis]/nto 、/w [交通/n 运输/vn 部/q]/nz 、/w 铁道部/nis 、/w 水利部/nis 、/w 农业部/nt “/w 卫生部/nto 、/w 统计局/nis 、/w 林业局/nis 、/w 地震局/nis 、/w 气象局/nis 、/w 保监会/nz 、/w 海洋局/nis 、/w 总参谋部/nis 、/w [中国/ns 红十字会/nis 总会/nis]/nt 等/udeng 部门/n 对/p 2013年/t 全国/n 自然灾害/n 情况/n 进行/vn "
+        #test_sent = "站/n 消息/n ，/w 近日/t ，/w 民政部/nis 、/w [国家/n 减灾/vn 委员会/nis 办公室/nis]/nt 会同/v [工业/n 和/cc 信息化/vn 部/q]/nz 、/w [国土/n 资源部/nis]/nto 、/w [交通/n 运输/vn 部/q]/nz 、/w 铁道部/nis 、/w 水利部/nis 、/w 农业部/nt “/w 卫生部/nto 、/w 统计局/nis 、/w 林业局/nis 、/w 地震局/nis 、/w 气象局/nis 、/w 保监会/nz 、/w 海洋局/nis 、/w 总参谋部/nis 、/w [中国/ns 红十字会/nis 总会/nis]/nt 等/udeng 部门/n 对/p 2013年/t 全国/n 自然灾害/n 情况/n 进行/vn "
         #test_sent = "“/w [缅甸/ns 政府/nis]/nt 。/w ”/w "
         #test_sent = "不仅/c 是/vshi 指挥中心/nis ，/w 还是/c 新兵/n 基地/nis ，/w 训练/vn 后/f 的/ude1 士兵/nnt 从/p 这里/rzs 派往/vf 掸邦/ns 各地/rzs 。/w “/w 深山老林/l 有/vyou 不少/m 南/b 掸邦/ns 军/n 士兵/nnt ，/w 总部/nis 周边/n 的/ude1 山林/n 就/d 有/vyou 两/m 、/w 三千/m ，/w 但是/c 要/v 去/vf 周边/n 据点/n ，/w 只能/v 走/v ，/w 山里/s 没有/v 路/n ，/w 都/d 是/vshi 丛林/n 小道/n 。/w ”/w "
         #test_sent = "[一/d 站/vi 站/vi]/mq 被/pbei 选/v 为/p 总部/nis 的/ude1 秘书/nnt 。/w "
         #test_sent = "记者/nnt 见到/v 了/ule [第/m 一批/mq]/mq 学员/nnt 乃/v 蒙/b ，/w [一/d 站/vi 站/vi]/mq 护送/v 来到/v 这里/rzs ，/w 知识分子/nnd ，/w 被/pbei 选/v 为/p 总部/nis 的/ude1 秘书/nnt 。/w “/w 我/rr 在/p 丛林/n 里/f 走/v 了/ule 一个/mq 多/a 月/n ！/w 来到/v 这里/rzs 是/vshi 我/rr 的/ude1 福分/n 。/w 为什么/ryv 各/rz 民族/n 不能/v 平等/a ？/w 一起/s 奋斗/vi ，/w 用/p  光明/ntc ”/w ，/w 乃/v 蒙/b 激动/a 地/ude2 说/v 。/w "
         #test_sent = "“/w 深山老林/l 有/vyou 不少/m 南/b 掸邦/ns 军/n 士兵/nnt ，/w 总部/nis 周边/n 的/ude1 山林/n 就/d 有/vyou 两/m 、/w 三千/m ，/w 但是/c 要/v 去/vf 周边/n 据点/n ，/w 只能/v 走/v ，/w 山里/s 没有/v 路/n ，/w 都/d 是/vshi 丛林/n 小道/n 。/w ”/w "
-        #print(test_sent)
+        #test_sent = "[中央/n	人民/n	广播/vn	电台/n]/nt "
+        test_sent = "国家/n  主席/n  江/nr  泽民/nr "
+        print(test_sent)
         test = process_merge_word_label(test_sent)
         print(test)
 
@@ -354,34 +409,40 @@ if __name__ == '__main__':
             print(sent)
 
     elif is_test == 2:
-        list_file = [ 'G:\\test_data\\NLP\\人民日报语料库2014\\2014\\0102\\c1001-24003117.txt']
+        list_file = [ 'G:/test_data/NLP/词性标注/人民日报语料库2014/1998_new/199801.txt']
         out_file = "G:/test_data/train_data"
         process_files(list_file, out_file)
     elif is_test == 1:
-        data_dir = "G:/test_data/NLP/人民日报语料库2014/2014"
+        data_dir = DATADIR
         list_name = []
         listdir(data_dir, list_name)
 
         all_len = len(list_name)
-        train_list_len = all_len * 8 // 10
-        testa_list_len = all_len * 1 // 10
-        testb_list_len = all_len - train_list_len - testa_list_len
+        if all_len <= 100:
+            process_files2(list_name, RESULTS_DIR, 0.05, 1)
+        else:
+            train_list_len = all_len * 96 // 100
+            testa_list_len = all_len * 2 // 100
+            testb_list_len = all_len - train_list_len - testa_list_len
 
-        print(train_list_len)
-        print(testa_list_len)
-        print(testb_list_len)
+            print(train_list_len)
+            print(testa_list_len)
+            print(testb_list_len)
 
-        train_list_file_name = list_name[0:train_list_len]
-        r_len = train_list_len + 1
-        testa_list_file_name = list_name[r_len:r_len + testa_list_len]
-        r_len = train_list_len + testb_list_len + 1
-        testb_list_file_name = list_name[r_len:r_len + testb_list_len - 2]
+            train_list_file_name = list_name[0:train_list_len]
+            r_len = train_list_len + 1
+            testa_list_file_name = list_name[r_len:r_len + testa_list_len]
+            r_len = train_list_len + testb_list_len + 1
+            testb_list_file_name = list_name[r_len:r_len + testb_list_len - 2]
 
-        out_file = "G:/test_data/rmrb_train_data"
-        process_files(train_list_file_name, out_file)
+            #
+            # listdir("G:/test_data/NLP/词性标注/人民日报语料库2014/1998_new", train_list_file_name)
 
-        out_file = "G:/test_data/rmrb_testa_data"
-        process_files(testa_list_file_name, out_file)
+            out_file = RESULTS_DIR + "/train_data"
+            process_files(train_list_file_name, out_file)
 
-        out_file = "G:/test_data/rmrb_testb_data"
-        process_files(testb_list_file_name, out_file)
+            out_file = RESULTS_DIR + "/testa_data"
+            process_files(testa_list_file_name, out_file)
+
+            out_file = RESULTS_DIR + "/testb_data"
+            process_files(testb_list_file_name, out_file)

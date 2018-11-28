@@ -4,6 +4,8 @@ You need to download `glove.840B.300d.txt` from
 https://nlp.stanford.edu/projects/glove/ and you need to have built
 your vocabulary first (Maybe using `build_vocab.py`)
 """
+import warnings
+warnings.filterwarnings(action='ignore', category=UserWarning, module='gensim')
 
 import numpy as np
 import gensim
@@ -14,7 +16,7 @@ DATA_DIR = "G:/test_data/NLP/rmrb2014/ready_data"
 
 if __name__ == '__main__':
     # Load vocab
-    with open(DATA_DIR + '/vocab.words.txt', "r") as f:
+    with open(DATA_DIR + '/vocab.words.txt', "r", encoding='utf-8') as f:
         word_to_idx = {line.strip(): idx for idx, line in enumerate(f)}
     size_vocab = len(word_to_idx)
     print(size_vocab)

@@ -1,4 +1,9 @@
 """GloVe Embeddings + bi-LSTM + CRF"""
+# cmd
+# cd G:\test_code\NLP\tf_ch_ner_
+# python main_lstm_crf.py --data_dir="G:/test_data/NLP/foshan2018/ready_data" --result_dir="G:/test_data/NLP/foshan2018/result"
+
+
 
 import functools
 import json
@@ -10,8 +15,18 @@ import numpy as np
 import tensorflow as tf
 import tf_metrics
 
-DATADIR = 'G:/test_data/NLP/rmrb2014/ready_data'
-RESULTS_DIR = 'G:/test_data/NLP/rmrb2014/results'
+import argparse
+
+parser = argparse.ArgumentParser(description='build data for training')
+parser.add_argument('--data_dir', type=str, default='data', help='data dir')
+parser.add_argument('--result_dir', type=str, default='result', help='predict result')
+args = parser.parse_args()
+
+DATADIR = args.data_dir
+RESULTS_DIR = args.result_dir
+
+#DATADIR = 'G:/test_data/NLP/rmrb2014/ready_data'
+#RESULTS_DIR = 'G:/test_data/NLP/rmrb2014/results'
 
 # Logging
 Path(RESULTS_DIR).mkdir(exist_ok=True)
@@ -32,7 +47,7 @@ def parse_fn(line_words, line_tags):
 
 
 def generator_fn(words, tags):
-    with Path(words).open('r') as f_words, Path(tags).open('r') as f_tags:
+    with Path(words).open('r',encoding='utf-8') as f_words, Path(tags).open('r',encoding='utf-8') as f_tags:
         for line_words, line_tags in zip(f_words, f_tags):
             yield parse_fn(line_words, line_tags)
 
@@ -63,7 +78,7 @@ def model_fn(features, labels, mode, params):
     training = (mode == tf.estimator.ModeKeys.TRAIN)
     vocab_words = tf.contrib.lookup.index_table_from_file(
         params['words'], num_oov_buckets=params['num_oov_buckets'])
-    with Path(params['tags']).open() as f:
+    with Path(params['tags']).open(encoding='utf-8') as f:
         indices = [idx for idx, tag in enumerate(f) if tag.strip() != 'O']
         num_tags = len(indices) + 1
 
@@ -143,7 +158,7 @@ if __name__ == '__main__':
         'dim': 300,
         'dropout': 0.5,
         'num_oov_buckets': 1,
-        'epochs': 30,
+        'epochs': 10,
         'batch_size': 32,
         'buffer': 15000,
         'lstm_size': 300,
